@@ -1,0 +1,359 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Training LMS — Developer Feature Breakdown & System Architecture</title>
+<style>
+:root{
+  --bg:#f5f7f8;--paper:#fff;--ink:#17242b;--muted:#5e6d75;--primary:#174f5f;
+  --primary-dark:#0d3946;--tint:#eaf3f5;--accent:#c9862a;--line:#d8e1e4;
+  --danger:#aa4848;--success:#317558;--radius:12px
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:Inter,Segoe UI,Arial,sans-serif;font-size:15px;line-height:1.6}
+.layout{display:flex;max-width:1540px;margin:0 auto}
+aside{width:292px;flex:0 0 292px;position:sticky;top:0;height:100vh;overflow:auto;background:#f9fbfc;border-right:1px solid var(--line);padding:30px 18px 30px 24px}
+.brand{font-size:20px;font-weight:800;color:var(--primary-dark);margin-bottom:3px}.sub{font-size:12px;color:var(--muted);margin-bottom:25px}
+.navgrp{font-size:10px;letter-spacing:.09em;text-transform:uppercase;color:#849299;margin:18px 0 6px 9px}
+nav a{display:block;color:#4d616a;text-decoration:none;padding:7px 9px;border-radius:7px;font-size:13px}nav a:hover{background:var(--tint);color:var(--primary-dark)}
+main{width:100%;max-width:1160px;padding:52px 64px 110px}.cover{margin-bottom:50px}
+.kicker{font-size:12px;text-transform:uppercase;letter-spacing:.1em;color:var(--accent);font-weight:800;margin-bottom:12px}
+h1,h2,h3{color:var(--primary-dark);line-height:1.17}h1{font-size:45px;max-width:16ch;margin:0 0 15px}h2{font-size:28px;margin:0}h3{font-size:19px;margin:26px 0 10px}
+.lede{font-size:17px;color:var(--muted);max-width:86ch}.meta{display:flex;gap:30px;flex-wrap:wrap;border-top:1px solid var(--line);margin-top:27px;padding-top:20px}.meta span{font-size:12px;color:#809099}.meta strong{display:block;color:var(--ink);font-size:14px;margin-top:2px}
+.section{margin-bottom:60px;scroll-margin-top:24px}.head{display:flex;gap:13px;align-items:baseline;border-bottom:2px solid var(--primary-dark);padding-bottom:11px;margin-bottom:13px}.num{font:600 12px ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--accent)}.intro{color:var(--muted);max-width:90ch}
+.card{background:var(--paper);border:1px solid var(--line);border-radius:var(--radius);padding:21px;margin:16px 0}.callout{background:var(--tint);border-left:4px solid var(--primary);padding:15px 17px;border-radius:8px;margin:17px 0}.callout.warn{background:#fff7e8;border-left-color:var(--accent)}.callout.danger{background:#fff1f0;border-left-color:var(--danger)}.callout.success{background:#eef8f2;border-left-color:var(--success)}
+table{width:100%;border-collapse:collapse;background:var(--paper);border:1px solid var(--line);border-radius:var(--radius);overflow:hidden;margin:15px 0;font-size:13.3px}th{text-align:left;background:var(--primary-dark);color:#fff;padding:11px 13px;font-size:11.5px}td{padding:11px 13px;border-top:1px solid var(--line);vertical-align:top}tr:nth-child(even){background:#fbfcfc}td:first-child{font-weight:700;width:20%}
+.tag{display:inline-block;padding:2px 7px;border-radius:20px;background:#edf3f4;color:var(--primary-dark);font-size:10px;font-weight:800;margin-left:6px}.small{font-size:12.5px;color:var(--muted)}
+.flow{background:var(--paper);border:1px solid var(--line);border-radius:var(--radius);padding:20px}.flowline{display:flex;flex-wrap:wrap;gap:8px;align-items:center}.node{border:1px solid #cfe0e4;background:var(--tint);padding:9px 12px;border-radius:8px;font-size:13px;font-weight:700;color:var(--primary-dark)}.arrow{color:#85969e}
+.arch{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}.arch .card{margin:0}.two{display:grid;grid-template-columns:1fr 1fr;gap:14px}.two .card{margin:0}
+.codebox{background:#101b21;color:#e7eef0;border-radius:10px;padding:16px;font:12px/1.55 ui-monospace,SFMono-Regular,Menlo,monospace;overflow:auto}.badge{display:inline-block;border-radius:5px;padding:2px 7px;font-size:10px;font-weight:800;background:#eef2f3;color:#4e626b}
+footer{padding:30px 64px 60px;color:#809099;font-size:12px;border-top:1px solid var(--line)}
+@media(max-width:980px){aside{display:none}.layout{display:block}main{padding:32px 22px 80px}.arch,.two{grid-template-columns:1fr}h1{font-size:36px}}
+@media print{aside{display:none}.layout{display:block}main{max-width:none;padding:0 18px}body{background:#fff}.section{break-inside:avoid}}
+</style>
+</head>
+<body>
+<div class="layout">
+<aside>
+  <div class="brand">Training LMS</div>
+  <div class="sub">Developer Feature Breakdown · v2.0</div>
+  <nav>
+    <div class="navgrp">Product</div>
+    <a href="#scope">Product scope</a><a href="#navigation">Navigation & sitemap</a><a href="#roles">Roles & access</a>
+    <div class="navgrp">Admin</div>
+    <a href="#admin-dashboard">01 · Admin dashboard</a><a href="#courses">02 · Course management</a><a href="#authoring">03 · Course authoring</a><a href="#media">04 · Media & resources</a><a href="#pricing">05 · Pricing & enrollment</a><a href="#students">06 · Enrollment records</a><a href="#payments">07 · Payments & Stripe</a><a href="#certificates">08 · Certificates</a><a href="#email">09 · Automated notifications</a><a href="#reports">10 · Reports & exports</a><a href="#settings">11 · LMS settings</a>
+    <div class="navgrp">Student</div>
+    <a href="#catalog">12 · Public course page</a><a href="#checkout">13 · Registration & checkout</a><a href="#student-dashboard">14 · Student dashboard</a><a href="#learning">15 · Learning player</a><a href="#completion">16 · Completion & certificate</a>
+    <div class="navgrp">Technical</div>
+    <a href="#architecture">System architecture</a><a href="#data">Database & data model</a><a href="#versioning">Course versioning</a><a href="#performance">Performance & smoothness</a><a href="#security">Security</a><a href="#accessibility">Accessibility</a><a href="#acceptance">Acceptance criteria</a>
+  </nav>
+</aside>
+
+<main>
+<section class="cover" id="scope">
+  <div class="kicker">Developer-ready LMS specification</div>
+  <h1>Evergreen Self-Service Training LMS</h1>
+  <p class="lede">A web-based learning management system where administrators prepare and publish long-lived training courses, students independently enroll and pay through Stripe, study the preloaded materials step by step, and automatically receive a certificate only after the LMS verifies 100% completion of all required learning items.</p>
+  <div class="meta">
+    <span>Primary model<strong>Course → Enrollment → Stripe payment → Learning → 100% → Certificate</strong></span>
+    <span>Operating model<strong>Self-service · no trainers · no live teaching · no active learner monitoring</strong></span>
+    <span>Content<strong>Video · Interactive video · PDF · PPT/PPTX · Text · Files · Images · Links · Quizzes</strong></span>
+    <span>Payments<strong>Stripe Checkout + verified webhooks</strong></span>
+    <span>Certificates<strong>Automatic digital/PDF certificate at 100%</strong></span>
+    <span>Lifecycle<strong>Courses are designed to remain usable for many years</strong></span>
+  </div>
+</section>
+
+<section class="section">
+  <div class="callout success"><strong>Core operating principle:</strong> Once a course is published, the LMS itself delivers the learning journey. Students do not need a trainer, instructor, mentor, or staff member to guide them through the course. The course contains the learning materials, completion rules and certificate configuration needed for independent completion.</div>
+  <div class="callout"><strong>Automatic journey:</strong> Admin creates or updates course → course is published → student opens course link/QR → registers/signs in → enrolls → pays through Stripe → verified payment unlocks access → student studies materials step by step → LMS records completion → progress reaches exactly 100% → certificate is generated automatically.</div>
+  <div class="callout warn"><strong>Certificate rule:</strong> Opening a course, reaching the last lesson, watching some content, or changing browser-side values must never be enough to issue a certificate. The server-side completion engine must verify every required learning condition and issue the certificate only when the final progress state is 100%.</div>
+</section>
+
+<section class="section" id="navigation"><div class="head"><span class="num">MAP</span><h2>Navigation & sitemap</h2></div>
+<p class="intro">The product has two simple experiences: an admin area for maintaining evergreen course content and a student area for self-service learning. There is no trainer workspace and no workflow that depends on a person actively supervising learners.</p>
+<div class="flow">
+<div class="flowline"><div class="node">Admin Login</div><span class="arrow">→</span><div class="node">Admin Dashboard</div><span class="arrow">→</span><div class="node">Courses</div><span class="arrow">→</span><div class="node">Course Authoring</div></div>
+<div class="flowline" style="margin-top:12px"><div class="node">Pricing</div><span class="arrow">→</span><div class="node">Publish</div><span class="arrow">→</span><div class="node">Public Course Link / QR</div></div>
+<div class="flowline" style="margin-top:12px"><div class="node">Course Page</div><span class="arrow">→</span><div class="node">Register / Sign In</div><span class="arrow">→</span><div class="node">Stripe Checkout</div><span class="arrow">→</span><div class="node">Verified Payment</div></div>
+<div class="flowline" style="margin-top:12px"><div class="node">Course Access</div><span class="arrow">→</span><div class="node">Step-by-Step Learning</div><span class="arrow">→</span><div class="node">100% Complete</div><span class="arrow">→</span><div class="node">Automatic Certificate</div></div>
+</div></section>
+
+<section class="section" id="roles"><div class="head"><span class="num">ROLES</span><h2>Roles & access</h2></div>
+<p class="intro">Keep roles deliberately simple. The LMS does not need trainer, instructor, mentor, support-agent or student-monitoring roles.</p>
+<table><tr><th>Role</th><th>Permissions</th><th>Notes</th></tr>
+<tr><td>Admin</td><td>Manage courses, course content, pricing, publishing, course versions, certificate templates, Stripe configuration, system settings and operational records.</td><td>The only administrative role required for v1 unless the organisation later needs additional internal permissions.</td></tr>
+<tr><td>Student</td><td>Register/sign in, enroll, pay, access purchased courses, complete required learning items, view progress and download certificates after completion.</td><td>Fully self-service. No staff action is required for normal learning and certification.</td></tr>
+</table>
+<div class="callout warn"><strong>Security:</strong> enforce permissions on the server/API. UI visibility is not a security control.</div></section>
+
+<section class="section" id="admin-dashboard"><div class="head"><span class="num">01</span><h2>Admin Dashboard <span class="tag">core</span></h2></div>
+<p class="intro">The dashboard is an operational control panel for maintaining the LMS. It should help an admin see whether courses, payments, certificates and system processes are healthy without turning the product into a learner-monitoring workspace.</p>
+<table><tr><th>Feature</th><th>Behaviour</th><th>Actions</th></tr>
+<tr><td>Course overview</td><td>Published, draft and archived course counts.</td><td>Open filtered course list.</td></tr>
+<tr><td>Enrollment overview</td><td>Recent enrollments and current paid/unpaid status.</td><td>Open enrollment records when needed.</td></tr>
+<tr><td>Payment overview</td><td>Successful, pending, failed and refunded transaction counts.</td><td>Open payment records.</td></tr>
+<tr><td>Completion overview</td><td>Course completion counts and overall completion percentage.</td><td>Open course-level reports.</td></tr>
+<tr><td>Certificate overview</td><td>Certificates issued and certificate generation failures.</td><td>Open certificate register or failed jobs.</td></tr>
+<tr><td>Content update status</td><td>Shows courses with draft changes waiting to be published.</td><td>Open the relevant course editor.</td></tr>
+<tr><td>System health</td><td>Stripe webhook health, email queue health, media processing and certificate generation jobs.</td><td>Open technical status.</td></tr>
+</table></section>
+
+<section class="section" id="courses"><div class="head"><span class="num">02</span><h2>Course Management</h2></div>
+<p class="intro">A course is a reusable, long-lived digital training product. Admin creates the course, fills it with learning materials and publishes it. After publication, students can use the course without any trainer being assigned.</p>
+<table><tr><th>Feature</th><th>Requirement</th><th>Required behaviour</th></tr>
+<tr><td>Course list</td><td>Thumbnail, title, code, category, status, current version, price, enrollment count, completion count, updated date.</td><td>Search, sort, filter and pagination.</td></tr>
+<tr><td>Create course</td><td>Title, description, code, category, thumbnail, duration, learning objectives and price.</td><td>Save as draft until required content is ready.</td></tr>
+<tr><td>Course status</td><td>Draft, published, unpublished, archived.</td><td>Only published courses can be newly enrolled in.</td></tr>
+<tr><td>Public URL</td><td>Stable unique URL for the course.</td><td>Shareable directly and convertible to QR code.</td></tr>
+<tr><td>Duplicate course</td><td>Clone structure/content references into a new course.</td><td>New course gets a new ID and remains draft.</td></tr>
+<tr><td>Archive</td><td>Hide an old course from normal public discovery.</td><td>Do not delete historical enrollments, payments or certificates.</td></tr>
+<tr><td>Publication validation</td><td>Check required metadata, required lessons, completion rules, pricing and certificate configuration.</td><td>Block publication when required setup is incomplete.</td></tr>
+</table></section>
+
+<section class="section" id="authoring"><div class="head"><span class="num">03</span><h2>Course Authoring & Content Builder <span class="tag">core</span></h2></div>
+<p class="intro">The admin needs a practical no-code authoring interface for building a complete course once and maintaining it over the long term.</p>
+<h3>Course structure</h3>
+<table><tr><th>Level</th><th>Purpose</th><th>Examples</th></tr>
+<tr><td>Course</td><td>Top-level training product.</td><td>“Manual Handling Training”.</td></tr>
+<tr><td>Section / Module</td><td>Major grouping of related learning.</td><td>Introduction, Procedures, Assessment.</td></tr>
+<tr><td>Lesson</td><td>Individual required or optional learning item.</td><td>Video, document, text lesson, interactive lesson, quiz.</td></tr>
+<tr><td>Resource</td><td>Supporting material attached to a course, section or lesson.</td><td>PDF guide, presentation, worksheet, reference file.</td></tr>
+</table>
+<h3>Learning blocks</h3>
+<table><tr><th>Block</th><th>Configuration</th><th>Completion behaviour</th></tr>
+<tr><td>Text</td><td>Rich text, headings, lists, links.</td><td>Viewed/read rule where configured; otherwise informational.</td></tr>
+<tr><td>Image</td><td>Image, alt text, caption, size and alignment.</td><td>Usually informational; may be part of a lesson viewed state.</td></tr>
+<tr><td>Video</td><td>Video, poster, captions, playback controls and completion threshold.</td><td>Complete at configured watched percentage or watch-to-end rule.</td></tr>
+<tr><td>Interactive video</td><td>Video with timed questions, text, images, links and interactions.</td><td>Complete only when configured required interactions and video threshold are satisfied.</td></tr>
+<tr><td>PDF</td><td>Upload, embedded view and optional download.</td><td>Viewed, acknowledged or other configured completion rule.</td></tr>
+<tr><td>PPT/PPTX</td><td>Upload, preview/download where supported.</td><td>Viewed or acknowledged according to configuration.</td></tr>
+<tr><td>File/resource</td><td>Allowed file formats, title, description and permissions.</td><td>Viewed/downloaded/acknowledged if required.</td></tr>
+<tr><td>Quiz</td><td>Questions, pass mark, attempts, feedback, optional randomisation.</td><td>Required quiz is complete only after the required pass condition.</td></tr>
+<tr><td>Checklist / acknowledgement</td><td>Required statements or learner confirmations.</td><td>Complete when all required items are confirmed.</td></tr>
+<tr><td>External link</td><td>URL, title and open behaviour.</td><td>Optional viewed/acknowledged completion rule.</td></tr>
+</table>
+<h3>Authoring controls</h3>
+<table><tr><th>Feature</th><th>Requirement</th></tr>
+<tr><td>Drag-and-drop</td><td>Reorder modules and lessons easily.</td></tr>
+<tr><td>Collapse/expand</td><td>Keep large courses manageable while editing.</td></tr>
+<tr><td>Preview</td><td>Preview exactly what a student sees without changing learner progress.</td></tr>
+<tr><td>Autosave</td><td>Draft changes autosave where practical with clear save state.</td></tr>
+<tr><td>Validation</td><td>Prevent publishing when required content or completion rules are incomplete.</td></tr>
+<tr><td>Responsive authoring</td><td>Admin editor works on normal desktop/tablet layouts; the published learning experience is fully responsive.</td></tr>
+</table>
+<h3>Completion rules</h3>
+<table><tr><th>Rule</th><th>Definition</th></tr>
+<tr><td>Viewed</td><td>Student opens the required item and the server records a valid completion event.</td></tr>
+<tr><td>Video percentage</td><td>Student must watch the configured percentage, such as 90% or 100%.</td></tr>
+<tr><td>Watch to end</td><td>Video reaches the required end state.</td></tr>
+<tr><td>Quiz passed</td><td>Student reaches the configured pass percentage.</td></tr>
+<tr><td>Acknowledged</td><td>Student explicitly confirms a required statement or instruction.</td></tr>
+<tr><td>All required child items</td><td>Section/module completion is derived from its required lessons.</td></tr>
+</table></section>
+
+<section class="section" id="media"><div class="head"><span class="num">04</span><h2>Media & Resource Library</h2></div>
+<table><tr><th>Feature</th><th>Micro-detail</th></tr>
+<tr><td>Media library</td><td>Searchable repository for videos, images, PDFs, PPT/PPTX and other course files.</td></tr>
+<tr><td>Upload manager</td><td>Drag-and-drop upload, validation, progress, retry and clear error states.</td></tr>
+<tr><td>Metadata</td><td>Filename, title, type, size, upload date, alt text and usage information where relevant.</td></tr>
+<tr><td>Folders/tags</td><td>Organise assets by course and optional tags.</td></tr>
+<tr><td>Replace file</td><td>Replacing an asset must not silently alter a published historical course version.</td></tr>
+<tr><td>Video processing</td><td>Transcoding/processing runs in the background. Students should never wait on an admin upload request.</td></tr>
+<tr><td>Private content</td><td>Paid course files remain protected even if a direct URL becomes known.</td></tr>
+<tr><td>Long-term storage</td><td>Use durable object storage and stable references so course materials can remain available for many years.</td></tr>
+</table></section>
+
+<section class="section" id="pricing"><div class="head"><span class="num">05</span><h2>Pricing, Enrollment & Access</h2></div>
+<table><tr><th>Feature</th><th>Requirement</th><th>Behaviour</th></tr>
+<tr><td>Course price</td><td>One-time price per course.</td><td>Currency configurable.</td></tr>
+<tr><td>Free course</td><td>Optional price of zero.</td><td>No Stripe payment required.</td></tr>
+<tr><td>Public enrollment URL</td><td>Every published course has a stable public page.</td><td>Share by URL or QR code.</td></tr>
+<tr><td>Enrollment availability</td><td>Admin can open/close enrollment.</td><td>Closed courses cannot accept new enrollments.</td></tr>
+<tr><td>Access rule</td><td>Paid course access follows verified payment.</td><td>No access from a success-page redirect alone.</td></tr>
+<tr><td>Long-lived access</td><td>Course access should remain available according to the configured access policy.</td><td>Do not build the normal journey around scheduled trainer sessions or attendance.</td></tr>
+</table></section>
+
+<section class="section" id="students"><div class="head"><span class="num">06</span><h2>Enrollment Records</h2></div>
+<p class="intro">The admin needs records for operational accuracy, not a workflow for actively managing or supervising learners.</p>
+<table><tr><th>Record</th><th>Stored information</th><th>Purpose</th></tr>
+<tr><td>Student account</td><td>Name, email, authentication data, account status, created date.</td><td>Identity and self-service access.</td></tr>
+<tr><td>Enrollment</td><td>Student, course, course version, enrollment date, access state, payment state, progress, completion date, certificate status.</td><td>Authoritative record of the student's course journey.</td></tr>
+<tr><td>Progress</td><td>Required item state, percentage, video position and completion timestamp.</td><td>Resume learning and calculate completion.</td></tr>
+<tr><td>Payment</td><td>Stripe identifiers, amount, currency, status and relevant timestamps.</td><td>Payment reconciliation and access control.</td></tr>
+<tr><td>Certificate</td><td>Certificate number, course version, issue date, file reference and status.</td><td>Permanent proof of completion.</td></tr>
+</table>
+<div class="callout"><strong>Normal workflow:</strong> Admin should not need to manually enroll students, mark lessons complete, approve completion, or issue certificates. Those actions are intentionally outside the standard journey.</div>
+</section>
+
+<section class="section" id="payments"><div class="head"><span class="num">07</span><h2>Payments & Stripe Integration <span class="tag">critical</span></h2></div>
+<p class="intro">Stripe Checkout is the payment layer. Course access is granted only after the server receives and verifies the relevant Stripe webhook event.</p>
+<div class="callout danger"><strong>Never unlock paid content solely because the student returned to a success URL.</strong> The verified server-side payment event is the source of truth for paid access.</div>
+<table><tr><th>Stage</th><th>Behaviour</th></tr>
+<tr><td>1. Start enrollment</td><td>Student selects the course and signs in/registers.</td></tr>
+<tr><td>2. Create checkout session</td><td>Server creates the Stripe Checkout Session using the authoritative course price.</td></tr>
+<tr><td>3. Stripe checkout</td><td>Student completes payment in the Stripe-hosted checkout experience or approved integration.</td></tr>
+<tr><td>4. Return page</td><td>Student returns to the LMS. The page explains that payment confirmation is being checked.</td></tr>
+<tr><td>5. Webhook</td><td>Stripe sends the payment event to the LMS webhook endpoint.</td></tr>
+<tr><td>6. Verification</td><td>Server verifies the webhook signature against the raw request body.</td></tr>
+<tr><td>7. Idempotency</td><td>Repeated webhook deliveries do not create duplicate payment or enrollment records.</td></tr>
+<tr><td>8. Fulfillment</td><td>Mark payment paid, activate enrollment and grant access to the purchased course version.</td></tr>
+<tr><td>9. Failure</td><td>Failed or expired payment does not grant paid course access.</td></tr>
+</table>
+<h3>Payment states</h3><table><tr><th>State</th><th>Meaning</th></tr>
+<tr><td>Pending</td><td>Enrollment started but successful payment is not confirmed.</td></tr><tr><td>Checkout created</td><td>Stripe Checkout Session created.</td></tr><tr><td>Paid</td><td>Successful payment confirmed by verified Stripe event.</td></tr><tr><td>Failed</td><td>Payment attempt failed.</td></tr><tr><td>Expired</td><td>Checkout session expired before successful payment.</td></tr><tr><td>Refunded</td><td>Stripe payment refunded; access follows the configured refund policy.</td></tr>
+</table>
+<h3>Developer requirements</h3><ul>
+<li>Keep Stripe secret keys server-side only.</li><li>Use environment variables or secure secret storage.</li><li>Verify webhook signatures against the raw request body.</li><li>Persist Stripe customer, checkout session and payment identifiers.</li><li>Store internal enrollment/course identifiers in Checkout metadata.</li><li>Use Stripe event IDs for idempotent processing.</li><li>Never trust a price supplied by the browser; fetch the authoritative course price from the server.</li></ul>
+</section>
+
+<section class="section" id="certificates"><div class="head"><span class="num">08</span><h2>Certificates & Automatic Certification <span class="tag">core</span></h2></div>
+<p class="intro">Certificates are entirely rule-driven. No admin approval step is required in the normal flow.</p>
+<h3>Certificate template</h3><table><tr><th>Component</th><th>Configuration</th></tr>
+<tr><td>Template name</td><td>Internal template name.</td></tr><tr><td>Page format</td><td>A4/Letter, portrait/landscape.</td></tr><tr><td>Background</td><td>Full-page image or structured design.</td></tr><tr><td>Logo</td><td>Organisation logo with position/size.</td></tr><tr><td>Title</td><td>Example: Certificate of Completion.</td></tr><tr><td>Student name</td><td>Dynamic student field.</td></tr><tr><td>Course name</td><td>Dynamic course/version field.</td></tr><tr><td>Completion statement</td><td>Configurable statement confirming successful completion.</td></tr><tr><td>Issue date</td><td>Automatically generated when certificate is issued.</td></tr><tr><td>Certificate number</td><td>Unique non-guessable identifier.</td></tr><tr><td>QR verification</td><td>Optional QR link to verification page.</td></tr><tr><td>Signature</td><td>Configured signature image or signer details.</td></tr><tr><td>Custom fields</td><td>Course code, duration, accreditation/reference number and other configured fields.</td></tr>
+</table>
+<h3>Automatic issuance rule</h3>
+<div class="flow"><div class="flowline"><div class="node">All required items complete</div><span class="arrow">→</span><div class="node">Server calculates 100%</div><span class="arrow">→</span><div class="node">Enrollment marked completed</div><span class="arrow">→</span><div class="node">Certificate job created</div><span class="arrow">→</span><div class="node">Certificate generated</div><span class="arrow">→</span><div class="node">Student can download</div></div></div>
+<table><tr><th>Rule</th><th>Requirement</th></tr>
+<tr><td>Eligibility</td><td>Every required learning item satisfies its completion condition.</td></tr><tr><td>Progress</td><td>Authoritative course progress reaches exactly 100%.</td></tr><tr><td>Issuance</td><td>Certificate is generated automatically. No staff approval is required.</td></tr><tr><td>Exactly once</td><td>The completion/issuance transaction is idempotent and cannot create duplicates from refreshes or repeated events.</td></tr><tr><td>Version integrity</td><td>Certificate stores the exact course version completed.</td></tr><tr><td>Availability</td><td>Student can view/download the certificate from the dashboard after generation.</td></tr><tr><td>Verification</td><td>Optional public verification page validates the certificate number/status.</td></tr>
+</table></section>
+
+<section class="section" id="email"><div class="head"><span class="num">09</span><h2>Automated Notifications</h2></div>
+<p class="intro">Notifications are transactional system messages only. They support the self-service journey and do not create a staff-led communication workflow.</p>
+<table><tr><th>Event</th><th>Trigger</th><th>Message</th></tr>
+<tr><td>Enrollment created</td><td>Enrollment record is created.</td><td>Course and next payment/access step.</td></tr><tr><td>Payment successful</td><td>Verified Stripe payment.</td><td>Payment confirmation and course access.</td></tr><tr><td>Course access</td><td>Paid access becomes active.</td><td>Course link and login/access information.</td></tr><tr><td>Course completed</td><td>Progress reaches 100%.</td><td>Completion confirmation and certificate availability.</td></tr><tr><td>Certificate issued</td><td>Certificate generation succeeds.</td><td>Certificate view/download link.</td></tr><tr><td>Password/reset</td><td>Account security action.</td><td>Secure reset or login instructions.</td></tr>
+</table>
+<div class="small">Course update emails may be enabled for material version changes, but they must remain automatic and must not require an employee to manually contact or supervise each student.</div></section>
+
+<section class="section" id="reports"><div class="head"><span class="num">10</span><h2>Reports & Exports</h2></div>
+<p class="intro">Reports provide operational and business visibility from system-generated records. They are not a learner-supervision queue.</p>
+<table><tr><th>Report</th><th>Metrics</th></tr>
+<tr><td>Course report</td><td>Published courses, enrollments, completions and completion percentage.</td></tr><tr><td>Enrollment report</td><td>Student, course, enrollment date, payment status, progress, completion date.</td></tr><tr><td>Payment report</td><td>Course, student, Stripe identifiers, amount, currency, payment status and refund state.</td></tr><tr><td>Certificate report</td><td>Student, course/version, issue date, certificate number and status.</td></tr><tr><td>Content report</td><td>Lesson usage, quiz pass rates and course-level completion patterns where available.</td></tr><tr><td>Course version report</td><td>Version number, publish date and change summary.</td></tr><tr><td>Export</td><td>CSV/XLSX export for authorised administrative use.</td></tr>
+</table></section>
+
+<section class="section" id="settings"><div class="head"><span class="num">11</span><h2>LMS Settings</h2></div>
+<table><tr><th>Area</th><th>Settings</th></tr>
+<tr><td>Organisation</td><td>Name, logo, contact details, timezone, default language and currency.</td></tr><tr><td>Course defaults</td><td>Default completion rules, visibility and resource permissions.</td></tr><tr><td>Stripe</td><td>Test/live mode, keys, webhook secret and webhook status.</td></tr><tr><td>Email</td><td>Provider, sender, reply-to and templates.</td></tr><tr><td>Certificates</td><td>Default template, numbering pattern and verification settings.</td></tr><tr><td>Security</td><td>MFA, password rules, sessions, rate limits and login protection.</td></tr><tr><td>Storage</td><td>Object storage provider, upload limits and allowed file types.</td></tr><tr><td>Automation</td><td>Background job settings, automatic notifications and certificate generation.</td></tr>
+</table></section>
+
+<section class="section" id="catalog"><div class="head"><span class="num">12</span><h2>Public Course Page</h2></div>
+<p class="intro">Each published course has a public page that can be shared directly. The page should clearly explain what the student is purchasing and how learning works.</p>
+<table><tr><th>Component</th><th>Details</th></tr>
+<tr><td>Course thumbnail</td><td>Hero image with responsive optimisation.</td></tr><tr><td>Course title</td><td>Clear course name.</td></tr><tr><td>Description</td><td>Overview, objectives and intended audience.</td></tr><tr><td>Course information</td><td>Duration, modules/lessons, format, certificate availability and price.</td></tr><tr><td>Preview</td><td>Optional sample lesson or video that does not expose paid materials.</td></tr><tr><td>Requirements</td><td>Prerequisites and technical requirements if applicable.</td></tr><tr><td>Enrollment CTA</td><td>Primary button to begin registration/enrollment.</td></tr><tr><td>QR/share</td><td>Admin-generated QR points to this same stable public course URL.</td></tr>
+</table></section>
+
+<section class="section" id="checkout"><div class="head"><span class="num">13</span><h2>Registration & Checkout</h2></div>
+<div class="flow"><div class="flowline"><div class="node">Course Page</div><span class="arrow">→</span><div class="node">Enroll</div><span class="arrow">→</span><div class="node">Register / Sign In</div><span class="arrow">→</span><div class="node">Stripe Checkout</div><span class="arrow">→</span><div class="node">Payment Verified</div><span class="arrow">→</span><div class="node">Course Access</div></div></div>
+<table><tr><th>Feature</th><th>Requirement</th></tr>
+<tr><td>Registration</td><td>Collect only the account data required for access and certification, such as name and email.</td></tr><tr><td>Existing student</td><td>Existing email/account signs in rather than creating a duplicate account.</td></tr><tr><td>Enrollment summary</td><td>Show course title, price, currency and key details before payment.</td></tr><tr><td>Checkout</td><td>Server creates the Stripe checkout session using trusted course pricing.</td></tr><tr><td>Success page</td><td>Show payment confirmation status and access only after server verification.</td></tr><tr><td>Cancel/failure</td><td>Allow retry without creating duplicate enrollment/payment records.</td></tr>
+</table></section>
+
+<section class="section" id="student-dashboard"><div class="head"><span class="num">14</span><h2>Student Dashboard</h2></div>
+<p class="intro">The student dashboard is the learner's self-service home. Everything required to finish the course should be available here without staff intervention.</p>
+<table><tr><th>Feature</th><th>Behaviour</th></tr>
+<tr><td>My courses</td><td>Show enrolled courses with thumbnail, progress percentage and status.</td></tr><tr><td>Continue learning</td><td>Open the next incomplete required lesson or the saved resume position.</td></tr><tr><td>Progress</td><td>Show overall completion and completed/remaining required items.</td></tr><tr><td>Certificates</td><td>List issued certificates with view/download action.</td></tr><tr><td>Course updates</td><td>Show system-generated messages when a new course version affects the student.</td></tr><tr><td>Profile</td><td>Manage basic account information needed for access and certificate generation.</td></tr>
+</table></section>
+
+<section class="section" id="learning"><div class="head"><span class="num">15</span><h2>Course Learning Player <span class="tag">core student experience</span></h2></div>
+<p class="intro">The learning player should be simple, fast and focused on independent completion. Do not load the entire course payload at once when the course is large.</p>
+<table><tr><th>Feature</th><th>Micro-detail</th></tr>
+<tr><td>Course sidebar</td><td>Modules and lessons with completed/current/up-next/locked indicators.</td></tr><tr><td>Main content</td><td>Render one lesson at a time with responsive content blocks.</td></tr><tr><td>Progress bar</td><td>Show overall course percentage and current module progress.</td></tr><tr><td>Previous/Next</td><td>Allow navigation; optionally lock Next until the current required lesson is complete.</td></tr><tr><td>Resume point</td><td>Save current lesson and media position.</td></tr><tr><td>Video player</td><td>Playback, captions, fullscreen and saved position.</td></tr><tr><td>Interactive content</td><td>Record required interactions and use them in completion calculation.</td></tr><tr><td>PDF/resources</td><td>Fast viewer and controlled download where allowed.</td></tr><tr><td>Quiz</td><td>Questions, score, pass/fail, attempts and feedback according to course configuration.</td></tr><tr><td>Accessibility</td><td>Keyboard support, focus state, readable controls, captions/transcripts where appropriate and sufficient contrast.</td></tr>
+</table></section>
+
+<section class="section" id="completion"><div class="head"><span class="num">16</span><h2>100% Completion & Automatic Certificate</h2></div>
+<h3>Progress calculation</h3>
+<div class="codebox">course_completion_percentage =
+  completed_required_learning_items
+  / total_required_learning_items
+  × 100
+
+certificate_eligible =
+  course_completion_percentage == 100%
+  AND all_required_completion_rules_are_satisfied</div>
+<p class="small">The implementation may use lesson weights or another deterministic model, but the final result must always be reproducible and server-authoritative.</p>
+<table><tr><th>Scenario</th><th>Expected result</th></tr>
+<tr><td>Student opens a course</td><td>Progress does not automatically become complete.</td></tr><tr><td>Student watches part of required video</td><td>Video remains incomplete until the configured threshold is met.</td></tr><tr><td>Student passes required quiz</td><td>Quiz becomes complete.</td></tr><tr><td>Student completes all required items</td><td>Progress becomes 100%.</td></tr><tr><td>Progress reaches 100%</td><td>Enrollment is marked completed exactly once and certificate issuance starts automatically.</td></tr><tr><td>Certificate generated</td><td>Certificate is stored permanently with student, course, course version and unique certificate number.</td></tr><tr><td>Student returns later</td><td>Course remains completed and certificate remains available.</td></tr>
+</table>
+<div class="callout success"><strong>Absolute business rule:</strong> 100% completion is the single eligibility threshold for automatic certification. There is no separate trainer sign-off, manual approval or attendance confirmation in the normal LMS workflow.</div></section>
+
+<section class="section" id="architecture"><div class="head"><span class="num">ARCH</span><h2>System Architecture</h2></div>
+<p class="intro">The architecture should make the LMS independent from human course delivery. Long-lived content, verified payments, progress tracking and certificate generation are handled by software services.</p>
+<div class="arch">
+<div class="card"><h3>Frontend</h3><ul><li>Admin web application</li><li>Public course pages</li><li>Student dashboard</li><li>Responsive learning player</li><li>Course authoring interface</li></ul></div>
+<div class="card"><h3>Backend/API</h3><ul><li>Authentication</li><li>Course/content services</li><li>Enrollment service</li><li>Progress/completion engine</li><li>Certificate service</li><li>Notification service</li></ul></div>
+<div class="card"><h3>Database</h3><ul><li>Users</li><li>Courses and versions</li><li>Enrollments</li><li>Progress state/events</li><li>Payments</li><li>Certificates</li></ul></div>
+<div class="card"><h3>Object Storage</h3><ul><li>Videos</li><li>Images</li><li>PDF/PPT/resources</li><li>Certificate files</li><li>Private access controls</li></ul></div>
+<div class="card"><h3>Background Workers</h3><ul><li>Video processing</li><li>Certificate generation</li><li>Email jobs</li><li>Exports</li><li>Maintenance tasks</li></ul></div>
+<div class="card"><h3>External Services</h3><ul><li>Stripe</li><li>Email provider</li><li>Optional CDN/video delivery</li><li>Optional application monitoring</li></ul></div>
+</div>
+<h3>Core request flow</h3><table><tr><th>Component</th><th>Responsibility</th></tr>
+<tr><td>Browser</td><td>Rendering, interaction, media playback and progress requests. Never stores server secrets.</td></tr><tr><td>API</td><td>Authentication, permission checks, enrollment checks and business logic.</td></tr><tr><td>Database</td><td>Authoritative state for courses, versions, enrollment, progress, payments and certificates.</td></tr><tr><td>Object storage</td><td>Durable long-term storage for large course materials and generated certificate files.</td></tr><tr><td>Queue</td><td>Runs slow work asynchronously so learner-facing requests stay fast.</td></tr><tr><td>CDN/video delivery</td><td>Recommended when the course library contains substantial video traffic.</td></tr>
+</table></section>
+
+<section class="section" id="data"><div class="head"><span class="num">DATA</span><h2>Database & Data Model</h2></div>
+<table><tr><th>Entity</th><th>Important fields</th><th>Purpose</th></tr>
+<tr><td>User</td><td>id, name, email, auth data, status, role</td><td>Student/admin identity.</td></tr><tr><td>Course</td><td>id, code, title, slug, description, status, price, currency, thumbnail, published_version_id</td><td>Long-lived course product.</td></tr><tr><td>CourseVersion</td><td>id, course_id, version_number, status, release_date, change_summary</td><td>Immutable snapshot for stable historical learning.</td></tr><tr><td>Section</td><td>id, course_version_id, title, sort_order, description</td><td>Course module.</td></tr><tr><td>Lesson</td><td>id, section_id, type, title, sort_order, required, completion_rule</td><td>Individual learning item.</td></tr><tr><td>ContentBlock</td><td>id, lesson_id, type, configuration, sort_order</td><td>Lesson content builder data.</td></tr><tr><td>MediaAsset</td><td>id, storage_key, type, size, title, metadata</td><td>Course media/file reference.</td></tr><tr><td>Enrollment</td><td>id, user_id, course_id, course_version_id, status, enrolled_at, completed_at, payment_state</td><td>Student's course purchase/learning record.</td></tr><tr><td>Progress</td><td>id, enrollment_id, lesson_id, state, percentage, last_position, completed_at</td><td>Authoritative learning progress.</td></tr><tr><td>QuizAttempt</td><td>id, lesson_id, enrollment_id, score, pass, attempt_number</td><td>Assessment completion data.</td></tr><tr><td>Payment</td><td>id, enrollment_id, provider, checkout_session_id, payment_intent_id, amount, currency, state</td><td>Maps Stripe payment to enrollment.</td></tr><tr><td>StripeEvent</td><td>id, provider_event_id, event_type, processed_at, status</td><td>Webhook idempotency and processing history.</td></tr><tr><td>CertificateTemplate</td><td>id, name, template_data, background_asset, status</td><td>Reusable certificate design.</td></tr><tr><td>Certificate</td><td>id, enrollment_id, template_id, number, issued_at, file_key, status</td><td>Permanent proof of completed course.</td></tr><tr><td>Notification</td><td>id, user_id, type, status, sent_at</td><td>Transactional system email tracking.</td></tr>
+</table></section>
+
+<section class="section" id="versioning"><div class="head"><span class="num">VERSION</span><h2>Course Versioning & Long-Term Content</h2></div>
+<p class="intro">Courses are expected to remain useful for many years. Publishing a new version must therefore preserve the integrity of historical enrollments and already-issued certificates.</p>
+<div class="callout"><strong>Recommended rule:</strong> Published course versions behave as immutable snapshots. New edits happen in a new draft version. New students receive the newest published version. Existing students remain attached to the version they enrolled in unless the organisation explicitly defines a migration rule.</div>
+<table><tr><th>Step</th><th>Behaviour</th></tr>
+<tr><td>1. Edit published course</td><td>Create a new draft version instead of modifying the historical published snapshot in place.</td></tr><tr><td>2. Edit draft</td><td>Change lessons, files, videos, quiz settings, resources and wording.</td></tr><tr><td>3. Validate</td><td>Ensure required learning items, completion rules and certificate configuration remain valid.</td></tr><tr><td>4. Publish</td><td>New version becomes the default version for future enrollments.</td></tr><tr><td>5. Existing students</td><td>Remain attached to their enrolled version by default, preserving their progress.</td></tr><tr><td>6. Historical certificates</td><td>Remain permanently tied to the exact course version completed.</td></tr><tr><td>7. Update notice</td><td>Optional automatic notice can inform existing students that a newer version exists; this must not create a manual monitoring workflow.</td></tr>
+</table>
+<h3>Why versioning matters</h3><p>A ten-year course library must not change underneath a learner in a way that invalidates their progress or makes an old certificate point to content they never completed. Versioned snapshots provide that stability.</p></section>
+
+<section class="section" id="performance"><div class="head"><span class="num">PERF</span><h2>Performance & Smoothness</h2></div>
+<table><tr><th>Area</th><th>Implementation requirement</th></tr>
+<tr><td>Course loading</td><td>Load course shell and current lesson first; lazy-load additional lesson data.</td></tr><tr><td>Video</td><td>Use optimised streaming/delivery and background processing. Avoid unnecessary full-file downloads.</td></tr><tr><td>Large uploads</td><td>Use direct-to-object-storage or multipart upload where practical.</td></tr><tr><td>Database</td><td>Index course slugs, enrollment lookups, student email, progress, payment identifiers and certificate numbers.</td></tr><tr><td>Lists</td><td>Use server-side filtering, sorting and pagination.</td></tr><tr><td>Queues</td><td>Certificate generation, email delivery, video processing and large exports run asynchronously.</td></tr><tr><td>Caching</td><td>Cache public course metadata and static assets safely; invalidate published-version caches when necessary.</td></tr><tr><td>Progress saves</td><td>Batch/debounce video progress writes rather than sending a request every second.</td></tr><tr><td>Resilience</td><td>Temporary network/API failure must not discard progress already saved.</td></tr><tr><td>Long-term reliability</td><td>Use durable storage, backups, monitoring and recovery procedures appropriate for a long-lived course library.</td></tr>
+</table>
+<div class="callout warn"><strong>Critical:</strong> browser-side progress is only a user-interface representation. The server must be authoritative for completion and certification.</div></section>
+
+<section class="section" id="security"><div class="head"><span class="num">SEC</span><h2>Security, Privacy & Integrity</h2></div>
+<table><tr><th>Requirement</th><th>Implementation</th></tr>
+<tr><td>Authentication</td><td>Secure session/token handling, password hashing, rate limiting and account recovery.</td></tr><tr><td>Admin protection</td><td>MFA should be required or strongly enforced for administrator accounts.</td></tr><tr><td>Authorisation</td><td>Server-side checks on protected endpoints and protected course resources.</td></tr><tr><td>Payment security</td><td>Keep Stripe secrets server-side and use Stripe-hosted Checkout/approved integration.</td></tr><tr><td>Webhook security</td><td>Verify Stripe signatures and reject invalid webhook requests.</td></tr><tr><td>Paid content</td><td>Use private storage, signed URLs or equivalent access control.</td></tr><tr><td>File validation</td><td>Validate file type/size and scan uploads where appropriate.</td></tr><tr><td>Audit log</td><td>Record important admin actions, course publication/versioning, pricing changes, payment-state changes and certificate events.</td></tr><tr><td>Data minimisation</td><td>Collect only data required for accounts, enrollment, payment and certification.</td></tr><tr><td>Certificate verification</td><td>Public verification exposes only the minimum information needed to validate authenticity.</td></tr>
+</table></section>
+
+<section class="section" id="accessibility"><div class="head"><span class="num">ACCESS</span><h2>Accessibility & Inclusive Learning</h2></div>
+<p class="intro">Target WCAG 2.2 AA for the public course pages, enrollment flow, dashboard and learning experience.</p>
+<table><tr><th>Area</th><th>Requirement</th></tr>
+<tr><td>Keyboard</td><td>All key controls usable without a mouse.</td></tr><tr><td>Focus</td><td>Visible focus and sensible focus order.</td></tr><tr><td>Video</td><td>Captions/subtitles where appropriate and transcript support for training content where available.</td></tr><tr><td>Colour</td><td>Do not rely on colour alone for completion state.</td></tr><tr><td>Motion</td><td>Lightweight transitions and reduced-motion support.</td></tr><tr><td>Forms</td><td>Labels, instructions, errors and accessible validation.</td></tr><tr><td>Responsive</td><td>Normal course content remains usable on mobile/tablet without unnecessary horizontal scrolling.</td></tr>
+</table></section>
+
+<section class="section" id="acceptance"><div class="head"><span class="num">QA</span><h2>Developer Acceptance Criteria</h2></div>
+<div class="card"><ol>
+<li>Admin can create a course with title, description, thumbnail, price and stable public URL.</li>
+<li>Admin can create modules/sections and reorder them.</li>
+<li>Admin can create lessons using video, interactive video, text, PDF, PPT/PPTX, resources, images, links, checklists and quizzes.</li>
+<li>Admin can configure which learning items are required and define their completion rules.</li>
+<li>A published course can be updated through a new version without corrupting historical enrollments or certificates.</li>
+<li>New students receive the latest published course version by default.</li>
+<li>There is no trainer/instructor workflow required for a student to complete a course.</li>
+<li>There is no normal manual approval step for completion or certification.</li>
+<li>Student can open a course through its public link or QR code.</li>
+<li>Student can register/sign in and start enrollment.</li>
+<li>Paid enrollment creates a Stripe Checkout Session using server-controlled pricing.</li>
+<li>Paid access is granted only after verified Stripe webhook processing.</li>
+<li>Repeated Stripe webhook events do not create duplicates.</li>
+<li>Student can access the purchased course and resume where they left off.</li>
+<li>Required learning completion is enforced server-side.</li>
+<li>Changing browser-side progress values cannot produce false completion.</li>
+<li>Course progress becomes exactly 100% only when every required completion condition is satisfied.</li>
+<li>When progress reaches 100%, enrollment becomes completed exactly once.</li>
+<li>Certificate generation starts automatically after 100% completion without staff approval.</li>
+<li>Certificate is generated using the exact course version completed.</li>
+<li>Certificate number is unique and the certificate can be viewed/downloaded by the student.</li>
+<li>Refreshing or revisiting a completion page cannot generate duplicate certificates.</li>
+<li>Public certificate verification works when enabled.</li>
+<li>Course materials can remain available for long-term use through durable storage and versioned content.</li>
+<li>Large media processing, emails and certificate generation do not block the learner-facing request.</li>
+<li>Admin screens remain usable for large course libraries and large enrollment tables.</li>
+<li>Core public, student and admin interfaces target WCAG 2.2 AA.</li>
+</ol></div></section>
+
+</main></div>
+<footer>Training LMS — Developer Feature Breakdown & System Architecture. Evergreen self-service model: no trainers, no live teaching workflow, no learner-monitoring dependency, automatic Stripe-to-learning-to-certificate journey.</footer>
+</body>
+</html>
